@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Simulador de Carga y Memorándum (v15.0 - Regeneración de Reporte)</title>
+    <!-- Dependencias de JS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@latest/dist/JsBarcode.all.min.js"></script>
+    <!-- Fuentes y Estilos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(229, 231, 235, 0.5); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        .common-input-style { @apply mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm shadow-sm placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500; }
+        #message-area { padding: 12px 15px; border-radius: 0.375rem; font-size: 0.9em; font-weight: 500; min-height: 46px; display: flex; align-items: center; justify-content: center; text-align: center; width: 100%; }
+        .success { background-color: #ECFDF5; border: 1px solid #34D399; color: #065F46; }
+        .error   { background-color: #FEF2F2; border: 1px solid #F87171; color: #991B1B; }
+        .info    { background-color: #EFF6FF; border: 1px solid #60A5FA; color: #1E40AF; }
+        .warning { background-color: #FFFBEB; border: 1px solid #FBBF24; color: #92400E; }
+        .camera-view-btn { @apply bg-white/80 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-gray-700 rounded-md shadow-md border border-gray-200 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all; }
+        #history-modal { display: none; }
+        #history-modal.show { display: flex; }
+        .memorandum-hidden { display: none; }
+        .memorandum { border: 1px solid #000; padding: 20px; background-color: white; color: #000; }
+        .memo-header-wrapper { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;}
+        .memo-logo { font-size: 28px; font-weight: bold; color: #4CAF50; }
+        .memo-header { text-align: center; flex-grow: 1; }
+        .memo-header h2 { margin: 0 0 10px 0; font-size: 24px; }
+        .memo-details-right, .memo-details-left { font-size: 12px; min-width: 200px; }
+        .memo-details-right div, .memo-details-left div { margin-bottom: 3px; }
+        .memo-asunto { font-size: 12px; text-align: left; margin-top: 5px; border-top: 1px solid #000; padding-top:10px; }
+        .memo-asunto .label { font-weight: bold; }
+        .memo-section { margin-bottom: 15px; } 
+        .memo-section h3 { font-size: 11px; font-weight:bold; margin-bottom: 3px; border-bottom: 1px solid #eee; padding-bottom: 2px; text-transform: uppercase; text-align: center;}
+        .memo-section p { font-size: 10px; margin: 1px 0; } 
+        .memo-section p strong { min-width: 180px; display: inline-block; font-weight: bold; }
+        .memo-section table { width: 100%; border-collapse: collapse; margin-top: 3px; font-size: 9px; } 
+        .memo-section th, .memo-section td { border: 1px solid #000; padding: 2px; text-align: left; vertical-align: top; } 
+        .memo-section th { background-color: #e0e0e0; font-weight: bold; text-align: center; }
+        .memo-section td:first-child { text-align: center; width: 25px; } 
+        .memo-footer { margin-top: 15px; font-size: 10px; }
+        .memo-footer p { margin-bottom: 10px; text-align:center;}
+        .signatures { display: flex; justify-content: space-around; text-align: center; margin-top: 20px; padding-top: 5px; }
+        .signatures div { width: 30%; padding-top: 30px; border-top: 1px solid #000; font-size: 9px; }
+    </style>
+</head>
+<body class="bg-gray-700 flex h-screen overflow-hidden">
+
+    <!-- PANELES Y CONTENIDO PRINCIPAL -->
+    <div id="left-panel" class="w-[360px] flex-shrink-0 bg-white p-5 shadow-2xl flex flex-col h-full custom-scrollbar overflow-y-auto">
+        <h2 class="text-xl font-semibold mb-5 text-gray-700 text-center border-b border-gray-300 pb-3">Planificador de Carga</h2>
+        <div class="control-section mb-4 p-3 border border-gray-200 rounded-lg shadow-sm bg-gray-50">
+            <h3 class="text-md font-semibold text-gray-700 mb-2">Paso 1: Vehículo</h3>
+            <label for="truckTypeSelect" class="block text-sm font-medium text-gray-700 mb-1">Tipo de Vehículo:</label>
+            <select id="truckTypeSelect" class="common-input-style mb-2"></select>
+            <label for="truckMaxWeight" class="block text-sm font-medium text-gray-700 mb-1">Peso Máx. (kg):</label>
+            <input type="number" id="truckMaxWeight" step="100" class="common-input-style">
+        </div>
+        <div class="control-section mb-4 p-3 border border-gray-200 rounded-lg shadow-sm bg-gray-50">
+            <h3 class="text-md font-semibold text-gray-700 mb-2">Paso 2: Plan de Entrega</h3>
+             <label for="excelFile" class="block text-sm font-medium text-gray-700 mb-1">Cargar Archivo Excel:</label>
+            <input type="file" id="excelFile" accept=".xlsx, .xls" class="common-input-style w-full text-xs mb-2">
+            <button id="downloadTemplateButton" class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                Descargar Plantilla
+            </button>
+        </div>
+        <div class="control-section mb-4 p-3 border border-gray-200 rounded-lg shadow-sm bg-gray-50">
+            <h3 class="text-md font-semibold text-gray-700 mb-2">Paso 3: Simulación</h3>
+            <div id="pending-load-list" class="mb-2 min-h-[80px] bg-gray-100 p-2 rounded custom-scrollbar overflow-y-auto max-h-[150px]"><p class="list-placeholder">Cargue un Excel.</p></div>
+            <button id="processLoadBtn" class="w-full flex items-center justify-center px-4 py-2.5 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18V8.25m-18 0V6a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 6v2.25m-18 0h18M5.25 6.375l4.125 4.125m0 0L13.5 6.375m-4.125 4.125V15" /></svg>
+                Procesar y Simular
+            </button>
+        </div>
+         <div class="control-section mt-auto pt-4 border-t border-gray-300">
+            <h3 class="text-md font-semibold text-gray-700 mb-2 text-center">Paso 4: Finalizar</h3>
+            <button id="generatePdfBtn" class="w-full flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2-2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                Generar Reporte y Memo
+            </button>
+            <button id="saveSimulationBtn" class="mt-2 w-full flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75H6.75a2.25 2.25 0 00-2.25 2.25v1.5M9 3.75h-.624c-.545 0-1.07.23-1.432.67l-2.025 2.258A3.375 3.375 0 003.375 9.75v1.125m0-4.5V7.5m-.75 6.75V18a2.25 2.25 0 002.25 2.25h1.5m-1.5-1.5a.75.75 0 01.75-.75h.75m7.5-10.875c.545-.64 1.07-.94 1.432-.94h.618M18.75 6.75h1.5m-1.5 0a2.25 2.25 0 012.25 2.25v1.5m-2.25-1.5a.75.75 0 00-.75.75v.75m0 7.5v-1.5m0 1.5a2.25 2.25 0 01-2.25 2.25H12.75m-8.625-6.75h-1.5m1.5 0a.75.75 0 01-.75-.75v-.75m7.5 1.5v-.75m0 0l-1.5-1.5M10.875 18H9.75m-2.25-4.5H9" /></svg>
+                Guardar Simulación
+            </button>
+            <button id="viewHistoryBtn" class="mt-2 w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.074 0-2.11.085-3.105.249a.75.75 0 00-.671.859 9.065 9.065 0 001.31 4.707m-1.31 4.707A8.967 8.967 0 006 20.25c1.074 0 2.11-.085 3.105-.249.463-.07.926-.118 1.395-.147m0 0a9.056 9.056 0 003.9-.893m-3.9.893c-1.31-.085-2.615-.178-3.9-.272m0 0v.75m0 0h-.75M12 18.75a8.967 8.967 0 006-2.292c1.074 0 2.11-.085 3.105-.249a.75.75 0 00.671-.859 9.065 9.065 0 00-1.31-4.707m1.31 4.707c-1.31.085-2.615-.178-3.9.272m0 0V17.25m0 0h.75M12 10.5a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
+                Ver Historial
+            </button>
+             <button id="resetBtn" class="mt-3 w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101A7.002 7.002 0 0110 3c3.866 0 7 3.134 7 7s-3.134 7-7 7a7.002 7.002 0 01-5.199-2.101V17a1 1 0 11-2 0v-5a1 1 0 011-1h5a1 1 0 110 2H5.101A5.002 5.002 0 0010 15c2.757 0 5-2.243 5-5s-2.243-5-5-5a5.002 5.002 0 00-3.899 1.899V3a1 1 0 01-1-1H4z" clip-rule="evenodd" /></svg>
+                Reiniciar Todo
+            </button>
+        </div>
+        <div id="message-area" class="mt-4 flex-shrink-0"></div>
+    </div>
+    <div id="scene-container" class="flex-grow h-full relative bg-white">
+        <div id="camera-controls-overlay" class="absolute top-2 left-2 flex flex-col space-y-2 z-10">
+            <button id="cam-view-3d" class="camera-view-btn">3D Perspectiva</button>
+            <button id="cam-view-top" class="camera-view-btn">Superior</button>
+            <button id="cam-view-right" class="camera-view-btn">Lat. Derecho</button>
+            <button id="cam-view-left" class="camera-view-btn">Lat. Izquierdo</button>
+        </div>
+    </div>
+    <div id="right-panel" class="w-[320px] flex-shrink-0 bg-gray-100 p-5 shadow-xl flex flex-col h-full custom-scrollbar overflow-y-auto">
+        <h2 class="text-lg font-semibold mb-4 text-gray-700 border-b border-gray-300 pb-2">Información de Carga</h2>
+        <div id="truck-stats-section" class="mb-5">
+            <h3 class="text-md font-semibold text-gray-600 mb-2">Estadísticas del Vehículo</h3>
+            <div id="stats-area" class="space-y-2 text-sm p-3 bg-white rounded-lg shadow border border-gray-200">
+                <div class="flex justify-between items-center"><span class="text-gray-600">Peso Cargado:</span><span id="totalWeightStat" class="font-semibold text-gray-800">0 kg</span></div>
+                <div class="flex justify-between items-center"><span class="text-gray-600">Peso Máximo:</span><span id="maxWeightStat" class="font-semibold text-gray-800">0 kg</span></div>
+                <div class="flex justify-between items-center"><span class="text-gray-600">Volumen Cargado:</span><span id="totalVolumeStat" class="font-semibold text-gray-800">0.00 m³</span></div>
+                <div class="flex justify-between items-center"><span class="text-gray-600">Volumen Vehículo:</span><span id="truckVolumeStat" class="font-semibold text-gray-800">0.00 m³</span></div>
+                <div class="flex justify-between items-center"><span class="text-gray-600">Utilización Volumen:</span><span id="volumeUtilizationStat" class="font-semibold text-gray-800">0 %</span></div>
+            </div>
+        </div>
+        <div id="loaded-units-section" class="flex-grow flex flex-col">
+            <h3 class="text-md font-semibold text-gray-600 mb-2">Unidades Cargadas</h3>
+            <div id="loaded-units-list" class="flex-grow bg-white p-2 rounded-lg shadow border border-gray-200 custom-scrollbar overflow-y-auto min-h-[150px]">
+                <p class="list-placeholder">Ninguna unidad cargada.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MODALES -->
+    <div id="history-modal" class="fixed inset-0 bg-black/70 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-4xl max-h-full overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-center mb-4 border-b pb-3"><h2 class="text-2xl font-bold text-gray-800">Historial de Simulaciones</h2><button id="closeHistoryBtn" class="text-gray-400 hover:text-gray-800 text-3xl font-bold">×</button></div>
+            <div id="history-list" class="space-y-3"><p class="text-gray-500 text-center">Cargando historial...</p></div>
+            <!-- Este contenedor ya no se usa para mostrar detalles, pero se deja por si se quiere reactivar -->
+            <div id="history-detail" class="mt-6 p-4 border rounded-lg bg-gray-50 hidden"><h3 class="text-lg font-semibold mb-2">Detalle del Registro</h3><div id="record-details-content" class="space-y-6"></div></div>
+        </div>
+    </div>
+    
+    <!-- CONTENEDOR OCULTO PARA MEMORANDUM -->
+    <div id="memorandumContainer" class="memorandum-hidden">
+        <div class="memorandum">
+            <div class="memo-header-wrapper"><div class="memo-logo">YORZU</div><div class="memo-header"><h2>MEMORANDUM</h2></div><div class="memo-details-right"><div><span class="label">FECHA:</span> <span id="memoFecha"></span></div><div><span class="label">FOLIO:</span> <span id="memoFolio"></span></div></div></div>
+            <div class="memo-details-left"><div><span class="label">PARA:</span> <span id="memoPara">VIGILANCIA</span></div><div><span class="label">DE:</span> <span id="memoDe">CONTROL DE PRODUCCION</span></div></div>
+            <div class="memo-asunto"><span class="label">ASUNTO:</span> <span id="memoAsunto">Por medio de la presente, solicito se realicen los tramites correspondientes a efecto de que se permita la salida de los siguientes productos fuera de la factura</span></div>
+            <div class="memo-section"><h3>Material NO incluido en factura</h3><p><strong>ESTO CON LA FINALIDAD DE:</strong> CUMPLIR CON EL PLAN DE ENTREGAS A CLIENTE</p><p><strong>CON CLIENTE:</strong> YMEX</p><p><strong>CON FECHA DE REGRESO EL DIA:</strong> SIN RETORNO</p><table id="tablaNoIncluido"><thead><tr><th>ITEM</th><th>NUMERO DE PARTE</th><th>DESCRIPCION</th><th>TIPO DE RACK</th><th>CANTIDAD DE RACKS</th><th>TOTAL DE PIEZAS</th></tr></thead><tbody></tbody></table></div>
+            <div class="memo-section"><h3>Material incluido en factura (los datos son informativos)</h3><p><strong>ESTO CON LA FINALIDAD DE:</strong> SER PROCESADO Y RETORNAR A YAGM</p><p><strong>CON PROVEEDOR:</strong> YMEX</p><p><strong>CON FECHA DE REGRESO EL DIA:</strong> SEGÚN EL PLAN DE ENTREGAS</p><table id="tablaIncluido"><thead><tr><th>ITEM</th><th>NUMERO DE PARTE</th><th>DESCRIPCION</th><th>TIPO DE RACK</th><th>CANTIDAD DE RACKS</th><th>TOTAL DE PIEZAS</th></tr></thead><tbody></tbody></table></div>
+            <div class="memo-section"><h3>RELACION DE CONTENEDORES</h3><p><strong>ESTO CON LA FINALIDAD DE:</strong> RETORNAR CON PRODUCTO A YAGM</p><p><strong>CON PROVEEDOR:</strong> YMEX</p><p><strong>CON FECHA DE REGRESO EL DIA:</strong> SEGÚN EL PLAN DE ENTREGAS</p><table id="tablaRelacionContenedores"><thead><tr><th>ITEM</th><th>TIPO DE CONTENEDOR</th><th>CON MATERIAL</th><th>VACIOS</th><th>TOTAL DE RACKS</th></tr></thead><tbody></tbody></table></div>
+            <div class="memo-footer"><p>Sin otro particular, quedamos a sus ordenes para cualquier aclaración.</p><div class="signatures"><div>ELABORO<br><span id="elaboroArea">AREA DE EMBARQUES O RECIBO</span></div><div>REVISO<br>SUPERVISOR O (LIDER POR AUCENCIA)</div><div>Recibió<br>Proveedor</div></div></div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let TRUCK_LENGTH_X, TRUCK_HEIGHT_Y, TRUCK_WIDTH_Z, TOTAL_TRUCK_VOLUME, truckMaxWeight;
+        const EPSILON = 0.001;
+        const vehicleTypesData = [ { name: "Tráiler Caja Seca 53 pies", length: 16.1, width: 2.48, height: 2.75, maxWeight: 22000, id: "trailer_53" }, { name: "Tráiler Caja Seca 48 pies", length: 14.6, width: 2.48, height: 2.75, maxWeight: 20000, id: "trailer_48" }, { name: "Camión Torton (Caja Seca)", length: 7.0, width: 2.45, height: 2.6, maxWeight: 15000, id: "torton" }, { name: "Camión Rabón (Caja Seca)", length: 6.0, width: 2.4, height: 2.5, maxWeight: 8000, id: "rabon" }, { name: "Camioneta 3.5 Ton (Caja Seca)", length: 4.2, width: 2.1, height: 2.15, maxWeight: 3500, id: "camioneta_3_5" }, ];
+        let currentVehicleType = vehicleTypesData[0];
+        let scene, camera, renderer, controls;
+        let truckMesh, groundMesh;
+        let unitTypes = [];
+        let loadedUnitsData = [];
+        let currentTruckWeight = 0, currentTruckVolume = 0;
+        let currentInstanceLetterCode = 64;
+        let pendingLoadOrder = [];
+        const PREDEFINED_COLORS = [0x6366F1, 0xEC4899, 0x10B981, 0xF59E0B, 0x3B82F6, 0x8B5CF6, 0xEF4444, 0x22C55E, 0x0EA5E9, 0xD946EF];
+        let currentColorIndex = 0;
+        let currentFolio = "";
+        
+        const truckTypeSelectElement = document.getElementById('truckTypeSelect');
+        const truckMaxWeightInputElement = document.getElementById('truckMaxWeight');
+        const excelFileInput = document.getElementById('excelFile');
+        const downloadTemplateButton = document.getElementById('downloadTemplateButton');
+        const memoFecha = document.getElementById('memoFecha');
+        const memoFolio = document.getElementById('memoFolio');
+        const tablaNoIncluidoBody = document.getElementById('tablaNoIncluido').getElementsByTagName('tbody')[0];
+        const tablaIncluidoBody = document.getElementById('tablaIncluido').getElementsByTagName('tbody')[0];
+        const tablaRelacionContenedoresBody = document.getElementById('tablaRelacionContenedores').getElementsByTagName('tbody')[0];
+        const saveSimulationBtn = document.getElementById('saveSimulationBtn');
+        const viewHistoryBtn = document.getElementById('viewHistoryBtn');
+        const historyModal = document.getElementById('history-modal');
+        const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+        const historyList = document.getElementById('history-list');
+
+        function initializeVehicleParameters() { TRUCK_LENGTH_X = currentVehicleType.length; TRUCK_HEIGHT_Y = currentVehicleType.height; TRUCK_WIDTH_Z = currentVehicleType.width; truckMaxWeight = currentVehicleType.maxWeight; TOTAL_TRUCK_VOLUME = TRUCK_LENGTH_X * TRUCK_HEIGHT_Y * TRUCK_WIDTH_Z; truckMaxWeightInputElement.value = truckMaxWeight; }
+        function populateVehicleTypeSelect() { truckTypeSelectElement.innerHTML = ''; vehicleTypesData.forEach(vehicle => { const option = document.createElement('option'); option.value = vehicle.id; option.textContent = `${vehicle.name} (${vehicle.length}L x ${vehicle.width}W x ${vehicle.height}H m)`; truckTypeSelectElement.appendChild(option); }); truckTypeSelectElement.value = currentVehicleType.id; }
+        function updateTruckDimensionsAndScene(vehicleId) { currentVehicleType = vehicleTypesData.find(v => v.id === vehicleId) || vehicleTypesData[0]; initializeVehicleParameters(); clearCurrentSimulation(); if (scene) { createTruckAndGroundMesh(); adjustCameraToVehicle(); } updateStats(); unitTypes.forEach(ut => { ut.maxStackCount = Math.floor((TRUCK_HEIGHT_Y - 0.02 + EPSILON) / ut.dimensions.y); }); displayMessage(`Vehículo cambiado a: ${currentVehicleType.name}. Simulación reiniciada.`, 'info'); }
+        function setCameraView(view) { if (!camera || !controls) return; const target = new THREE.Vector3(0, TRUCK_HEIGHT_Y / 2, 0); let newPosition = new THREE.Vector3(); const maxDimension = Math.max(TRUCK_LENGTH_X, TRUCK_HEIGHT_Y, TRUCK_WIDTH_Z); const cameraDistance = maxDimension * 1.4; switch (view) { case 'top': newPosition.set(0, cameraDistance, 0.01); break; case 'right': newPosition.set(0, TRUCK_HEIGHT_Y / 2, cameraDistance); break; case 'left': newPosition.set(0, TRUCK_HEIGHT_Y / 2, -cameraDistance); break; case '3d': default: newPosition.set(-cameraDistance * 0.8, cameraDistance * 0.7, cameraDistance * 0.8); break; } camera.position.copy(newPosition); controls.target.copy(target); controls.update(); }
+        function adjustCameraToVehicle() { setCameraView('3d'); if (controls) { controls.maxDistance = Math.max(50, TRUCK_LENGTH_X * 4); } }
+        function createTruckAndGroundMesh() { if (truckMesh) scene.remove(truckMesh); if (groundMesh) scene.remove(groundMesh); const groundGeometry = new THREE.PlaneGeometry(100, 100); const groundMaterial = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.8 }); groundMesh = new THREE.Mesh(groundGeometry, groundMaterial); groundMesh.rotation.x = -Math.PI / 2; groundMesh.receiveShadow = true; scene.add(groundMesh); const truckGeometry = new THREE.BoxGeometry(TRUCK_LENGTH_X, TRUCK_HEIGHT_Y, TRUCK_WIDTH_Z); const truckMaterial = new THREE.MeshStandardMaterial({ color: 0xA1A1AA, transparent: true, opacity: 0.15, side: THREE.DoubleSide }); const truckEdges = new THREE.EdgesGeometry(truckGeometry); const truckLines = new THREE.LineSegments(truckEdges, new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 1.5 })); truckMesh = new THREE.Group(); truckMesh.add(new THREE.Mesh(truckGeometry, truckMaterial)); truckMesh.add(truckLines); truckMesh.position.y = TRUCK_HEIGHT_Y / 2; scene.add(truckMesh); const directionalLight = scene.getObjectByName("directionalLight"); if (directionalLight) { directionalLight.position.set(TRUCK_LENGTH_X * 0.8, TRUCK_HEIGHT_Y * 2.5, TRUCK_WIDTH_Z * 2.2); } }
+        function initThreeJS() { const container = document.getElementById('scene-container'); scene = new THREE.Scene(); scene.background = new THREE.Color(0xffffff); camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 1000); renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setSize(container.clientWidth, container.clientHeight); renderer.setPixelRatio(window.devicePixelRatio); renderer.shadowMap.enabled = true; container.appendChild(renderer.domElement); controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.05; controls.maxPolarAngle = Math.PI / 1.9; scene.add(new THREE.AmbientLight(0xffffff, 0.9)); const dirLight = new THREE.DirectionalLight(0xffffff, 0.8); dirLight.name = "directionalLight"; dirLight.castShadow = true; dirLight.shadow.mapSize.set(2048, 2048); scene.add(dirLight); initializeVehicleParameters(); populateVehicleTypeSelect(); createTruckAndGroundMesh(); adjustCameraToVehicle(); animate(); updateStats(); }
+        function onWindowResize() { const container = document.getElementById('scene-container'); if (container && renderer) { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); } }
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        function displayMessage(message, type = 'success') { const messageArea = document.getElementById('message-area'); messageArea.textContent = message; messageArea.className = ''; messageArea.classList.add(type); setTimeout(() => { messageArea.textContent = ''; messageArea.className = ''; }, 6000); }
+        function getTextColorForBackground(hexColor) { const rgb = parseInt(hexColor.substring(1), 16); const r = (rgb >> 16) & 0xff, g = (rgb >> 8) & 0xff, b = (rgb >> 0) & 0xff; return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 128 ? 'white' : 'black'; }
+        function updateLoadedUnitsList() { const listDiv = document.getElementById('loaded-units-list'); if (loadedUnitsData.length === 0) { listDiv.innerHTML = '<p class="list-placeholder">Ninguna unidad cargada.</p>'; return; } listDiv.innerHTML = loadedUnitsData.map((item, i) => { const unitType = item.unitType; let itemStyle = `background-color: ${unitType.color}; color: ${getTextColorForBackground(unitType.color)};`; return `<div style="${itemStyle}" class="p-1 rounded mb-1 text-xs">${i + 1}. Lote ${item.instanceName} (Tipo: ${item.unitTypeName})</div>`; }).join(''); }
+        function updateStats() { document.getElementById('totalWeightStat').textContent = `${currentTruckWeight.toFixed(1)} kg`; document.getElementById('maxWeightStat').textContent = `${truckMaxWeight.toFixed(0)} kg`; document.getElementById('totalVolumeStat').textContent = `${currentTruckVolume.toFixed(2)} m³`; document.getElementById('truckVolumeStat').textContent = `${TOTAL_TRUCK_VOLUME.toFixed(2)} m³`; const utilization = TOTAL_TRUCK_VOLUME > 0 ? (currentTruckVolume / TOTAL_TRUCK_VOLUME * 100) : 0; document.getElementById('volumeUtilizationStat').textContent = `${utilization.toFixed(1)} %`; const weightStatElement = document.getElementById('totalWeightStat'); weightStatElement.classList.toggle('text-red-600', currentTruckWeight > truckMaxWeight); weightStatElement.classList.toggle('font-bold', currentTruckWeight > truckMaxWeight); saveSimulationBtn.disabled = !(loadedUnitsData.length > 0 && currentFolio); }
+        function updatePendingLoadList() { const listDiv = document.getElementById('pending-load-list'); if (pendingLoadOrder.length === 0) { listDiv.innerHTML = '<p class="list-placeholder">Cargue un Excel.</p>'; return; } listDiv.innerHTML = pendingLoadOrder.map((order) => { let itemStyle = `background-color: ${order.unitType.color}; color: ${getTextColorForBackground(order.unitType.color)};`; return `<div style="${itemStyle}" class="p-1 rounded mb-1 text-xs">${order.baseName}: ${order.unitType.name} x ${order.totalUnits}</div>`; }).join(''); }
+        function clearCurrentSimulation() { loadedUnitsData.forEach(item => { if (item.mesh) scene.remove(item.mesh); }); loadedUnitsData = []; currentTruckWeight = 0; currentTruckVolume = 0; updateLoadedUnitsList(); updateStats(); }
+        function processAndRenderLoad() { if (pendingLoadOrder.length === 0) { displayMessage("No hay órdenes en la planificación para procesar.", "info"); return; } clearCurrentSimulation(); let allUnitsToPlace = []; pendingLoadOrder.forEach(order => { for (let i = 0; i < order.totalUnits; i++) { allUnitsToPlace.push({ unitType: order.unitType, baseName: order.baseName }); } }); allUnitsToPlace.sort((a, b) => { const areaA = a.unitType.dimensions.x * a.unitType.dimensions.z; const areaB = b.unitType.dimensions.x * b.unitType.dimensions.z; if (areaB !== areaA) return areaB - areaA; return b.unitType.dimensions.y - a.unitType.dimensions.y; }); let unitsPlacedCount = 0; let unitsFailedCount = 0; let weightLimitReached = false; for (const unit of allUnitsToPlace) { if (currentTruckWeight + unit.unitType.weight > truckMaxWeight && loadedUnitsData.length > 0) { weightLimitReached = true; unitsFailedCount++; continue; } const placementResult = placeUnit(unit.unitType, unit.baseName); if (placementResult.placed) { unitsPlacedCount++; } else { unitsFailedCount++; } } if (unitsPlacedCount > 0) { let message = `${unitsPlacedCount} de ${allUnitsToPlace.length} unidades colocadas.`; if (unitsFailedCount > 0) { message += ` ${unitsFailedCount} no cupieron por espacio`; if(weightLimitReached) message += " o límite de peso."; else message += "."; displayMessage(message, 'warning'); } else { displayMessage(message, 'success'); } } else { displayMessage("No se colocó ninguna unidad. Verifique dimensiones vs. espacio/peso del vehículo.", "error"); } }
+        function addUnitMeshToScene(unitType, instanceName, pos, baseY) { const { x: uDX, y: uDY, z: uDZ } = unitType.dimensions; const truckOrigin = { x: -TRUCK_LENGTH_X / 2, y: 0, z: -TRUCK_WIDTH_Z / 2 }; const meshPos = { x: truckOrigin.x + pos.x + uDX/2, y: truckOrigin.y + baseY + uDY/2, z: truckOrigin.z + pos.z + uDZ/2 }; const material = new THREE.MeshStandardMaterial({ color: unitType.color, roughness: 0.6 }); const geometry = new THREE.BoxGeometry(uDX, uDY, uDZ); const unitGroup = new THREE.Group(); const solidMesh = new THREE.Mesh(geometry, material); solidMesh.castShadow = true; unitGroup.add(solidMesh); const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }); unitGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMaterial)); unitGroup.position.set(meshPos.x, meshPos.y, meshPos.z); scene.add(unitGroup); loadedUnitsData.push({ unitType: unitType, unitTypeId: unitType.id, unitTypeName: unitType.name, instanceName, dimensions: { ...unitType.dimensions }, weight: unitType.weight, mesh: unitGroup, positionBase: { x: pos.x, y: baseY, z: pos.z } }); currentTruckWeight += unitType.weight; currentTruckVolume += uDX * uDY * uDZ; updateStats(); updateLoadedUnitsList(); }
+        function checkCollision(newItemBox, existingItems) { for (const ex of existingItems) { const { x: eX, y: eY, z: eZ } = ex.positionBase; const { x: eDX, y: eDY, z: eDZ } = ex.dimensions; const existingB = new THREE.Box3( new THREE.Vector3(eX, eY, eZ), new THREE.Vector3(eX + eDX, eY + eDY, eZ + eDZ) ); if (newItemBox.intersectsBox(existingB)) return true; } return false; }
+        function placeUnit(unitType, name) { const { x: uDX, y: uDY, z: uDZ } = unitType.dimensions; const stacks = new Map(); for (const item of loadedUnitsData) { const key = `${item.positionBase.x.toFixed(3)}_${item.positionBase.z.toFixed(3)}`; if (!stacks.has(key)) stacks.set(key, []); stacks.get(key).push(item); } for (const [key, stackItems] of stacks) { stackItems.sort((a, b) => a.positionBase.y - b.positionBase.y); const topUnit = stackItems[stackItems.length - 1]; const sameFootprint = Math.abs(topUnit.dimensions.x - uDX) < EPSILON && Math.abs(topUnit.dimensions.z - uDZ) < EPSILON; const stackNotFull = stackItems.length < topUnit.unitType.maxStackCount; const newHeight = topUnit.positionBase.y + topUnit.dimensions.y + uDY; const fitsVertically = newHeight <= TRUCK_HEIGHT_Y + EPSILON; if (sameFootprint && stackNotFull && fitsVertically) { const newBaseY = topUnit.positionBase.y + topUnit.dimensions.y; addUnitMeshToScene(unitType, name, { x: topUnit.positionBase.x, z: topUnit.positionBase.z }, newBaseY); return { placed: true }; } } const step = 0.02; for (let currentX = TRUCK_LENGTH_X - uDX; currentX >= -EPSILON; currentX -= step) { for (let currentZ = 0; currentZ <= TRUCK_WIDTH_Z - uDZ + EPSILON; currentZ += step) { const tX = parseFloat(currentX.toFixed(3)); const tZ = parseFloat(currentZ.toFixed(3)); const newItemBox = new THREE.Box3( new THREE.Vector3(tX, 0, tZ), new THREE.Vector3(tX + uDX, uDY, tZ + uDZ) ); if (!checkCollision(newItemBox, loadedUnitsData)) { addUnitMeshToScene(unitType, name, { x: tX, z: tZ }, 0); return { placed: true }; } } } return { placed: false }; }
+        function resetSimulationState(fullReset = true) { clearCurrentSimulation(); currentInstanceLetterCode = 64; currentColorIndex = 0; if (fullReset) { pendingLoadOrder = []; unitTypes = []; updatePendingLoadList(); excelFileInput.value = ''; document.getElementById('memoFecha').textContent = ''; document.getElementById('memoFolio').textContent = ''; currentFolio = ''; displayMessage('Sistema completamente reiniciado. Listo para una nueva planificación.', 'success'); } updateStats(); }
+        function downloadTemplateButtonHandler() { const templateData = [ ["FACTURADOS", "N° DE PARTE", "DESCRIPCION DE LA PIEZA", "CONTENEDOR", "N° DE RACKS", "CANTIDAD DE PIEZAS", "SNP", "PESO RACK (kg)", "PESO PIEZA (kg)", "LARGO (m)", "ANCHO (m)", "ALTO (m)"], ["OK", "EJEMPLO-NP-001", "PIEZA DE PRUEBA 1", "RACK-TIPO-A", 10, 200, 20, 150, 1.5, 1.2, 1.0, 1.5], ["N/A", "EJEMPLO-NP-002", "OTRA PIEZA", "RACK-TIPO-B", 5, 50, 30, 120, 2.0, 1.1, 0.8, 1.0], ["N/A", "NP-PARA-VACIOS", "VACIOS", "CONT-VACIOS", 3, 0, "", 100, 0, 1.0, 1.0, 1.0] ]; const ws = XLSX.utils.aoa_to_sheet(templateData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "PlantillaDatos"); XLSX.writeFile(wb, "Plantilla_Carga_YORZU.xlsx"); }
+        function excelFileInputHandler(event) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, { type: 'array' }); const firstSheetName = workbook.SheetNames[0]; const worksheet = workbook.Sheets[firstSheetName]; const jsonDataObjects = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: "" }); resetSimulationState(true); processExcelData(jsonDataObjects); populateMemorandum(jsonDataObjects); displayMessage('Excel cargado. Plan y memo listos. Presione "Procesar y Simular Carga".', 'success'); } catch (err) { console.error("Error procesando Excel:", err); displayMessage("Error al procesar Excel: " + err.message, "error"); } }; reader.readAsArrayBuffer(file); }
+        function getNextInstanceLetter() { currentInstanceLetterCode++; if (currentInstanceLetterCode > 90) return `Lote-${currentInstanceLetterCode}`; return String.fromCharCode(currentInstanceLetterCode); }
+        function processExcelData(data) { const excelUnitTypes = new Map(); data.forEach(row => { const contenedor = String(row['CONTENEDOR'] || 'N/A').trim(); const largo = parseFloat(row['LARGO (m)']) || 1; const ancho = parseFloat(row['ANCHO (m)']) || 1; const alto = parseFloat(row['ALTO (m)']) || 1; const pesoRack = parseFloat(row['PESO RACK (kg)']) || 50; const numRacks = parseInt(row['N° DE RACKS']) || 0; if (numRacks === 0) return; const unitTypeKey = `${contenedor}_${largo}x${ancho}x${alto}`; if (!excelUnitTypes.has(unitTypeKey)) { if (alto <= 0) { console.warn(`Ignorando tipo de unidad con altura 0 o negativa: ${contenedor}`); return; } const maxStack = Math.floor((TRUCK_HEIGHT_Y - 0.02 + EPSILON) / alto); if (maxStack < 1) { displayMessage(`Contenedor "${contenedor}" (${alto}m) es muy alto para el vehículo (${TRUCK_HEIGHT_Y.toFixed(2)}m).`, 'warning'); } const newUnitType = { id: `ut_${Date.now()}_${unitTypes.length}`, name: contenedor, dimensions: { x: largo, y: alto, z: ancho }, weight: pesoRack, color: '#' + PREDEFINED_COLORS[currentColorIndex++ % PREDEFINED_COLORS.length].toString(16).padStart(6, '0'), maxStackCount: Math.max(1, maxStack) }; unitTypes.push(newUnitType); excelUnitTypes.set(unitTypeKey, newUnitType); } const currentUnitType = excelUnitTypes.get(unitTypeKey); pendingLoadOrder.push({ unitType: currentUnitType, totalUnits: numRacks, baseName: getNextInstanceLetter() }); }); updatePendingLoadList(); }
+        function populateMemorandum(dataFromExcel) { tablaNoIncluidoBody.innerHTML = ''; tablaIncluidoBody.innerHTML = ''; tablaRelacionContenedoresBody.innerHTML = ''; const hoy = new Date(); memoFecha.textContent = hoy.toLocaleDateString('es-ES'); currentFolio = `YM${String(hoy.getFullYear()).slice(-2)}${String(hoy.getMonth() + 1).padStart(2, '0')}${String(hoy.getDate()).padStart(2, '0')}${String(hoy.getHours()).padStart(2, '0')}${String(hoy.getMinutes()).padStart(2, '0')}`; memoFolio.textContent = currentFolio; const agrupadoNoIncluido = {}, agrupadoIncluido = {}, contenedoresSummary = {}; dataFromExcel.forEach(row => { const facturados = String(row['FACTURADOS'] || '').trim().toUpperCase(); const numParte = String(row['N° DE PARTE'] || '').trim(); const descripcion = String(row['DESCRIPCION DE LA PIEZA'] || '').trim(); const tipoRack = String(row['CONTENEDOR'] || '').trim(); const cantidadRacks = Number(row['N° DE RACKS']) || 0; const totalPiezas = Number(row['CANTIDAD DE PIEZAS']) || 0; if (tipoRack) { if (!contenedoresSummary[tipoRack]) contenedoresSummary[tipoRack] = { conMaterial: 0, vacios: 0 }; if (descripcion.toUpperCase() === "VACIOS" && cantidadRacks > 0) { contenedoresSummary[tipoRack].vacios += cantidadRacks; } else if (cantidadRacks > 0) { contenedoresSummary[tipoRack].conMaterial += cantidadRacks; } } if (descripcion.toUpperCase() !== "VACIOS" && numParte && tipoRack) { const clave = `${numParte}_${tipoRack}`; let datosRef = (facturados === "N/A") ? agrupadoNoIncluido : (facturados === "OK" ? agrupadoIncluido : null); if (!datosRef) return; if (!datosRef[clave]) datosRef[clave] = { numParte, descripcion, tipoRack, cantidadRacks: 0, totalPiezas: 0 }; datosRef[clave].cantidadRacks += cantidadRacks; datosRef[clave].totalPiezas += totalPiezas; } }); let itemNoIncluidoCount = 1; Object.values(agrupadoNoIncluido).forEach(item => { const tr = tablaNoIncluidoBody.insertRow(); tr.innerHTML = `<td>${itemNoIncluidoCount++}.-</td><td>${item.numParte}</td><td>${item.descripcion}</td><td>${item.tipoRack}</td><td>${item.cantidadRacks}</td><td>${item.totalPiezas} pz</td>`; }); let itemIncluidoCount = 1; Object.values(agrupadoIncluido).forEach(item => { const tr = tablaIncluidoBody.insertRow(); tr.innerHTML = `<td>${itemIncluidoCount++}.-</td><td>${item.numParte}</td><td>${item.descripcion}</td><td>${item.tipoRack}</td><td>${item.cantidadRacks}</td><td>${item.totalPiezas} pz</td>`; }); let itemRelacionCount = 1; Object.keys(contenedoresSummary).forEach(contenedor => { const data = contenedoresSummary[contenedor]; if (data.conMaterial > 0 || data.vacios > 0) { const tr = tablaRelacionContenedoresBody.insertRow(); tr.innerHTML = `<td>${itemRelacionCount++}.-</td><td>${contenedor}</td><td>${data.conMaterial}</td><td>${data.vacios}</td><td>${data.conMaterial + data.vacios}</td>`; } }); }
+        function generateIntegratedPDF() { if (loadedUnitsData.length === 0 || !currentFolio) { displayMessage("Simule una carga primero para generar el reporte.", "warning"); return; } displayMessage("Generando PDF (Reporte + Memo), por favor espere...", "info"); try { const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: "p", unit: "mm", format: "letter" }); const pageHeight = doc.internal.pageSize.getHeight(); const pageWidth = doc.internal.pageSize.getWidth(); const margin = 12; const availableWidth = pageWidth - margin * 2; let yPos = margin; doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.text("Reporte de Simulación de Carga", pageWidth / 2, yPos, { align: "center" }); yPos += 8; doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.text(`Vehículo: ${currentVehicleType.name}`, margin, yPos); const dateText = `Fecha: ${new Date().toLocaleString('es-ES')}`; doc.text(dateText, pageWidth - margin, yPos, { align: 'right' }); yPos += 5; doc.setLineWidth(0.2); doc.line(margin, yPos, pageWidth - margin, yPos); yPos += 7; const statsTableBody = [ ["Peso Total Cargado:", document.getElementById('totalWeightStat').textContent, "Volumen Total Cargado:", document.getElementById('totalVolumeStat').textContent], ["Peso Máximo Vehículo:", document.getElementById('maxWeightStat').textContent, "Volumen Vehículo:", document.getElementById('truckVolumeStat').textContent], ["", "", "Utilización Volumen:", document.getElementById('volumeUtilizationStat').textContent] ]; doc.autoTable({ startY: yPos, body: statsTableBody, theme: 'plain', styles: { fontSize: 8.5, cellPadding: 1 }, columnStyles: { 0: { fontStyle: 'bold' }, 2: { fontStyle: 'bold' } } }); yPos = doc.lastAutoTable.finalY + 8; const views = [ { id: '3d', name: '3D Perspectiva' }, { id: 'top', name: 'Superior' }, { id: 'right', name: 'Lateral Derecho' }, { id: 'left', name: 'Lateral Izquierdo' } ]; const originalCameraPos = camera.position.clone(); const originalTargetPos = controls.target.clone(); const imgWidth = (availableWidth / 2) - 2; let imagesData = []; views.forEach(view => { setCameraView(view.id); renderer.render(scene, camera); imagesData.push({ name: view.name, data: renderer.domElement.toDataURL('image/png') }); }); camera.position.copy(originalCameraPos); controls.target.copy(originalTargetPos); controls.update(); let imgHeight = ((renderer.domElement.height * imgWidth) / renderer.domElement.width) / 2; doc.setFontSize(8); doc.setFont(undefined, 'bold'); const titleYOffset1 = yPos; const imageYOffset1 = yPos + 1; doc.text(imagesData[0].name, margin, titleYOffset1); doc.addImage(imagesData[0].data, 'PNG', margin, imageYOffset1, imgWidth, imgHeight); doc.text(imagesData[1].name, margin + imgWidth + 4, titleYOffset1); doc.addImage(imagesData[1].data, 'PNG', margin + imgWidth + 4, imageYOffset1, imgWidth, imgHeight); yPos = imageYOffset1 + imgHeight + 8; const titleYOffset2 = yPos; const imageYOffset2 = yPos + 1; doc.text(imagesData[2].name, margin, titleYOffset2); doc.addImage(imagesData[2].data, 'PNG', margin, imageYOffset2, imgWidth, imgHeight); doc.text(imagesData[3].name, margin + imgWidth + 4, titleYOffset2); doc.addImage(imagesData[3].data, 'PNG', margin + imgWidth + 4, imageYOffset2, imgWidth, imgHeight); yPos = imageYOffset2 + imgHeight + 8; doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.text("Resumen de Unidades Cargadas", margin, yPos); yPos += 5; const groupedUnits = {}; loadedUnitsData.forEach(item => { const groupId = item.unitTypeId; if (!groupedUnits[groupId]) { groupedUnits[groupId] = { typeName: item.unitTypeName, color: item.unitType.color, count: 0, totalWeight: 0, uniqueStacks: new Set() }; } groupedUnits[groupId].count++; groupedUnits[groupId].totalWeight += item.weight; groupedUnits[groupId].uniqueStacks.add(`${item.positionBase.x.toFixed(2)}_${item.positionBase.z.toFixed(2)}`); }); const unitsHead = [["Tipo Contenedor", "Cant.", "Peso Total (kg)", "Estibas"]]; const unitsBody = Object.values(groupedUnits).map(g => [g.typeName, g.count, g.totalWeight.toFixed(1), g.uniqueStacks.size]); doc.autoTable({ startY: yPos, head: unitsHead, body: unitsBody, theme: 'striped', headStyles: { fillColor: [22, 160, 133] }, styles: { fontSize: 8, valign: 'middle' }, columnStyles: { 0: { cellPadding: { left: 7 } } }, didDrawCell: (data) => { if (data.section === 'body' && data.column.index === 0) { const group = Object.values(groupedUnits)[data.row.index]; if (!group) return; const color = group.color; const [r, g, b] = [parseInt(color.slice(1, 3), 16), parseInt(color.slice(3, 5), 16), parseInt(color.slice(5, 7), 16)]; doc.setFillColor(r, g, b); doc.circle(data.cell.x + 3, data.cell.y + data.cell.height / 2, 1.5, 'F'); } }, }); doc.addPage(); yPos = margin; doc.setFontSize(22); doc.setFont(undefined, 'bold'); doc.setTextColor(76, 175, 80); doc.text("YORZU", margin, yPos + 5); doc.setTextColor(0, 0, 0); doc.setFontSize(18); doc.text("MEMORANDUM", pageWidth / 2, yPos + 5, { align: "center" }); doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(150, 150, 150); doc.text(`FOLIO: ${currentFolio}`, pageWidth - margin, yPos + 3, { align: 'right' }); yPos += 15; doc.text(`PARA: ${document.getElementById('memoPara').textContent}`, margin, yPos); yPos += 5; doc.text(`DE: ${document.getElementById('memoDe').textContent}`, margin, yPos); yPos += 5; doc.setLineWidth(0.3); doc.line(margin, yPos, pageWidth - margin, yPos); yPos += 5; doc.setFont(undefined, 'bold'); doc.text("ASUNTO:", margin, yPos); doc.setFont(undefined, 'normal'); let splitText = doc.splitTextToSize(document.getElementById('memoAsunto').textContent, availableWidth - 20); doc.text(splitText, margin + 20, yPos); yPos += (splitText.length * 4) + 5; const renderMemoSection = (title, details, tableId) => { if (yPos > pageHeight - 40) { doc.addPage(); yPos = margin; } doc.setFontSize(10); doc.setFont(undefined, 'bold'); doc.setFillColor(240, 240, 240); doc.rect(margin, yPos, availableWidth, 7, 'F'); doc.text(title, pageWidth / 2, yPos + 5, { align: 'center' }); yPos += 9; doc.setFontSize(8); doc.setFont(undefined, 'normal'); details.forEach(detail => { doc.text(detail, margin, yPos); yPos += 4; }); doc.autoTable({ html: `#${tableId}`, startY: yPos, theme: 'grid', headStyles: { fillColor: [224, 224, 224], textColor: 0, fontSize: 7, fontStyle: 'bold', halign: 'center' }, styles: { fontSize: 7, cellPadding: 1, lineColor: 150, lineWidth: 0.1 }, didDrawPage: data => yPos = data.cursor.y, }); yPos = doc.lastAutoTable.finalY + 8; }; renderMemoSection("Material NO incluido en factura", ["ESTO CON LA FINALIDAD DE: CUMPLIR CON EL PLAN DE ENTREGAS A CLIENTE", "CON CLIENTE: YMEX", "CON FECHA DE REGRESO EL DIA: SIN RETORNO"], "tablaNoIncluido"); renderMemoSection("Material incluido en factura (los datos son informativos)", ["ESTO CON LA FINALIDAD DE: SER PROCESADO Y RETORNAR A YAGM", "CON PROVEEDOR: YMEX", "CON FECHA DE REGRESO EL DIA: SEGÚN EL PLAN DE ENTREGAS"], "tablaIncluido"); renderMemoSection("RELACION DE CONTENEDORES", ["ESTO CON LA FINALIDAD DE: RETORNAR CON PRODUCTO A YAGM", "CON PROVEEDOR: YMEX", "CON FECHA DE REGRESO EL DIA: SEGÚN EL PLAN DE ENTREGAS"], "tablaRelacionContenedores"); const totalPages = doc.internal.getNumberOfPages(); const qrSize = 15; const qr = qrcode(0, 'L'); qr.addData(currentFolio); qr.make(); const qrImgData = qr.createDataURL(4); const barcodeCanvas = document.createElement('canvas'); if (currentFolio) { JsBarcode(barcodeCanvas, currentFolio, { format: "CODE128", displayValue: false, width: 2, height: 50, margin: 0 }); } const barcodeImgData = barcodeCanvas.toDataURL('image/png'); const barcodeWidth = 30; const barcodeHeight = 8; for (let i = 1; i <= totalPages; i++) { doc.setPage(i); doc.addImage(barcodeImgData, 'PNG', pageWidth - margin - barcodeWidth, margin + 8, barcodeWidth, barcodeHeight); doc.addImage(qrImgData, 'PNG', pageWidth - margin - qrSize, pageHeight - margin - qrSize, qrSize, qrSize); doc.addImage(qrImgData, 'PNG', margin, pageHeight - margin - qrSize, qrSize, qrSize); } const pdfBlob = doc.output('blob'); const pdfUrl = URL.createObjectURL(pdfBlob); window.open(pdfUrl, '_blank'); displayMessage("PDF (Reporte + Memo) generado con éxito.", "success"); } catch (error) { console.error("Error al generar el PDF:", error); displayMessage(`Error al crear PDF: ${error.message}`, 'error'); } }
+        async function saveCurrentSimulation() { if (!currentFolio) { displayMessage("No hay un folio actual para guardar. Cargue un Excel primero.", "warning"); return; } if (loadedUnitsData.length === 0) { displayMessage("No hay unidades cargadas para guardar. Simule una carga primero.", "warning"); return; } displayMessage("Guardando simulación...", "info"); const dataToSave = { memoData: { Folio: currentFolio, Fecha: memoFecha.textContent, Para: document.getElementById('memoPara').textContent, De: document.getElementById('memoDe').textContent, Asunto: document.getElementById('memoAsunto').textContent, Elaboro: document.getElementById('elaboroArea').textContent, Reviso: "SUPERVISOR O (LIDER POR AUCENCIA)", Recibio: "Proveedor", VehiculoTipo: currentVehicleType.name, VehiculoPesoMaximo: truckMaxWeight, VehiculoVolumenTotal: TOTAL_TRUCK_VOLUME, CargaPesoTotal: currentTruckWeight, CargaVolumenTotal: currentTruckVolume, CargaUtilizacionVolumen: (TOTAL_TRUCK_VOLUME > 0 ? (currentTruckVolume / TOTAL_TRUCK_VOLUME * 100) : 0) }, materialNoIncluido: [], materialIncluido: [], relacionContenedores: [], unidadesCargadas: loadedUnitsData.map(unit => ({ UnitTypeID: unit.unitTypeId, UnitTypeName: unit.unitTypeName, InstanceName: unit.instanceName, DimensionX: unit.dimensions.x, DimensionY: unit.dimensions.y, DimensionZ: unit.dimensions.z, Weight: unit.weight, PositionBaseX: unit.positionBase.x, PositionBaseY: unit.positionBase.y, PositionBaseZ: unit.positionBase.z })) }; Array.from(tablaNoIncluidoBody.rows).forEach(row => { dataToSave.materialNoIncluido.push({ Item: parseInt(row.cells[0].textContent), NumeroParte: row.cells[1].textContent, Descripcion: row.cells[2].textContent, TipoRack: row.cells[3].textContent, CantidadRacks: parseInt(row.cells[4].textContent), TotalPiezas: parseInt(row.cells[5].textContent.replace(' pz', '')) }); }); Array.from(tablaIncluidoBody.rows).forEach(row => { dataToSave.materialIncluido.push({ Item: parseInt(row.cells[0].textContent), NumeroParte: row.cells[1].textContent, Descripcion: row.cells[2].textContent, TipoRack: row.cells[3].textContent, CantidadRacks: parseInt(row.cells[4].textContent), TotalPiezas: parseInt(row.cells[5].textContent.replace(' pz', '')) }); }); Array.from(tablaRelacionContenedoresBody.rows).forEach(row => { dataToSave.relacionContenedores.push({ Item: parseInt(row.cells[0].textContent), TipoContenedor: row.cells[1].textContent, ConMaterial: parseInt(row.cells[2].textContent), Vacios: parseInt(row.cells[3].textContent), TotalRacks: parseInt(row.cells[4].textContent) }); }); try { const response = await fetch('save_record.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dataToSave) }); const result = await response.json(); if (result.success) { displayMessage("Simulación guardada con éxito.", "success"); } else { displayMessage(`Error al guardar: ${result.message}`, "error"); } } catch (error) { displayMessage(`Error de conexión al guardar: ${error.message}`, "error"); } }
+        
+        async function openHistoryModal() {
+            historyModal.classList.add('show');
+            historyList.innerHTML = '<p class="text-gray-500 text-center">Cargando historial...</p>';
+            document.getElementById('history-detail').classList.add('hidden'); // Ocultar el detalle
+
+            try {
+                const response = await fetch('load_records.php');
+                const result = await response.json();
+
+                if (result.success && result.records.length > 0) {
+                    historyList.innerHTML = '';
+                    result.records.forEach(record => {
+                        const recordItem = document.createElement('div');
+                        recordItem.className = 'p-3 bg-white border border-gray-200 rounded-md shadow-sm cursor-pointer hover:bg-gray-100 transition-colors';
+                        recordItem.innerHTML = `
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="font-semibold text-gray-800">Folio: ${record.Folio}</p>
+                                    <p class="text-sm text-gray-600">Fecha: ${record.Fecha}</p>
+                                    <p class="text-xs text-gray-500">Vehículo: ${record.VehiculoTipo}</p>
+                                </div>
+                                <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded text-sm">
+                                    Regenerar
+                                </button>
+                            </div>
+                        `;
+                        recordItem.addEventListener('click', () => regenerateReportFromHistory(record.Folio));
+                        historyList.appendChild(recordItem);
+                    });
+                } else {
+                    historyList.innerHTML = '<p class="text-gray-500 text-center">No hay registros guardados.</p>';
+                }
+            } catch (error) {
+                historyList.innerHTML = '<p class="text-red-500 text-center">Error al cargar historial.</p>';
+            }
+        }
+        
+        async function regenerateReportFromHistory(folio) {
+            historyModal.classList.remove('show');
+            displayMessage('Cargando simulación histórica. El PDF se generará en breve...', 'info');
+
+            try {
+                const response = await fetch(`load_records.php?folio=${folio}`);
+                const result = await response.json();
+
+                if (!result.success || !result.record) {
+                    displayMessage(`Error: No se pudieron cargar los datos del folio ${folio}.`, 'error');
+                    return;
+                }
+                const record = result.record;
+
+                resetSimulationState(false);
+                
+                currentFolio = record.memoData.Folio;
+                const vehicleName = record.memoData.VehiculoTipo;
+                const historicalVehicle = vehicleTypesData.find(v => v.name === vehicleName) || vehicleTypesData[0];
+                truckTypeSelectElement.value = historicalVehicle.id;
+                updateTruckDimensionsAndScene(historicalVehicle.id);
+                
+                memoFolio.textContent = record.memoData.Folio;
+                memoFecha.textContent = record.memoData.Fecha;
+                
+                tablaNoIncluidoBody.innerHTML = '';
+                record.materialNoIncluido.forEach(item => {
+                    const tr = tablaNoIncluidoBody.insertRow();
+                    tr.innerHTML = `<td>${item.Item}.-</td><td>${item.NumeroParte}</td><td>${item.Descripcion}</td><td>${item.TipoRack}</td><td>${item.CantidadRacks}</td><td>${item.TotalPiezas} pz</td>`;
+                });
+
+                tablaIncluidoBody.innerHTML = '';
+                record.materialIncluido.forEach(item => {
+                    const tr = tablaIncluidoBody.insertRow();
+                    tr.innerHTML = `<td>${item.Item}.-</td><td>${item.NumeroParte}</td><td>${item.Descripcion}</td><td>${item.TipoRack}</td><td>${item.CantidadRacks}</td><td>${item.TotalPiezas} pz</td>`;
+                });
+
+                tablaRelacionContenedoresBody.innerHTML = '';
+                record.relacionContenedores.forEach(item => {
+                    const tr = tablaRelacionContenedoresBody.insertRow();
+                    tr.innerHTML = `<td>${item.Item}.-</td><td>${item.TipoContenedor}</td><td>${item.ConMaterial}</td><td>${item.Vacios}</td><td>${item.TotalRacks}</td>`;
+                });
+
+                const historicalUnitTypes = new Map();
+                let colorIdx = 0;
+
+                record.unidadesCargadas.forEach(unitData => {
+                    let unitType = historicalUnitTypes.get(unitData.UnitTypeName);
+                    if (!unitType) {
+                        unitType = {
+                            id: unitData.UnitTypeID,
+                            name: unitData.UnitTypeName,
+                            dimensions: { x: unitData.DimensionX, y: unitData.DimensionY, z: unitData.DimensionZ },
+                            weight: unitData.Weight,
+                            color: '#' + PREDEFINED_COLORS[colorIdx++ % PREDEFINED_COLORS.length].toString(16).padStart(6, '0')
+                        };
+                        historicalUnitTypes.set(unitData.UnitTypeName, unitType);
+                    }
+                    
+                    const position = { x: unitData.PositionBaseX, z: unitData.PositionBaseZ };
+                    const baseY = unitData.PositionBaseY;
+                    addUnitMeshToScene(unitType, unitData.InstanceName, position, baseY);
+                });
+                
+                generateIntegratedPDF();
+
+            } catch (error) {
+                displayMessage(`Ocurrió un error al regenerar el reporte: ${error.message}`, 'error');
+                console.error("Error regenerando reporte:", error);
+            }
+        }
+        
+        // EVENT LISTENERS
+        window.addEventListener('resize', onWindowResize);
+        truckTypeSelectElement.addEventListener('change', (e) => updateTruckDimensionsAndScene(e.target.value));
+        truckMaxWeightInputElement.addEventListener('input', (e) => { truckMaxWeight = parseFloat(e.target.value) || currentVehicleType.maxWeight; updateStats(); });
+        excelFileInput.addEventListener('change', excelFileInputHandler);
+        downloadTemplateButton.addEventListener('click', downloadTemplateButtonHandler);
+        document.getElementById('processLoadBtn').addEventListener('click', processAndRenderLoad);
+        document.getElementById('resetBtn').addEventListener('click', () => resetSimulationState(true));
+        document.getElementById('generatePdfBtn').addEventListener('click', generateIntegratedPDF);
+        document.getElementById('cam-view-3d').addEventListener('click', () => setCameraView('3d'));
+        document.getElementById('cam-view-top').addEventListener('click', () => setCameraView('top'));
+        document.getElementById('cam-view-right').addEventListener('click', () => setCameraView('right'));
+        document.getElementById('cam-view-left').addEventListener('click', () => setCameraView('left'));
+        saveSimulationBtn.addEventListener('click', saveCurrentSimulation);
+        viewHistoryBtn.addEventListener('click', openHistoryModal);
+        closeHistoryBtn.addEventListener('click', () => historyModal.classList.remove('show'));
+        historyModal.addEventListener('click', (e) => { if (e.target === historyModal) { historyModal.classList.remove('show'); } });
+
+        initThreeJS();
+    });
+    </script>   
+</body>
+</html>
